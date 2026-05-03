@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maa Gayatri - POS System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@0.473.0/dist/umd/lucide.js"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="pos-styles.css">
+</head>
+<body class="bg-[#141414] text-white h-screen overflow-hidden flex flex-col">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="fixed inset-0 z-[9999] bg-[#141414] flex items-center justify-center">
+        <div class="bg-[#1d1b1b] p-8 border border-[#6b5656] rounded-xl flex flex-col items-center shadow-2xl w-96">
+            <h1 class="text-2xl font-bold mb-2 text-[#D4A84B]">MGHR POS LOGIN</h1>
+            <p class="text-white/50 text-sm mb-6">Enter your credentials to access system</p>
+            <input type="text" id="login-user" placeholder="Username" class="w-full bg-[#1C1C1C] border border-[#6b5656] rounded px-4 py-2 mb-3 outline-none focus:border-[#D4A84B]">
+            <input type="password" id="login-pass" placeholder="Password" class="w-full bg-[#1C1C1C] border border-[#6b5656] rounded px-4 py-2 mb-6 outline-none focus:border-[#D4A84B]" onkeydown="if(event.key==='Enter') doLogin()">
+            <button onclick="doLogin()" class="w-full bg-[#0a6603] text-white font-bold py-2 rounded hover:bg-[#0c7a04] transition-colors">LOGIN</button>
+            <div id="login-error" class="text-red-500 text-sm mt-3 hidden">Invalid credentials!</div>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="app-wrapper" class="hidden flex-col h-full items-stretch">
+    <!-- HEADER -->
+    <header class="h-[60px] bg-[#0a6603] border-b border-[#6b5656] px-6 flex items-center justify-between shrink-0 z-10">
+        <div class="flex items-center gap-3">
+            <div class="text-2xl opacity-85">MGHR Online</div>
+            <div>
+                <h1 class="text-lg font-bold leading-tight">माँ गायत्री होटेल आणि रेस्टोरेंट</h1>
+                <p class="text-[11px] text-[#d9ff04] uppercase tracking-widest leading-none mt-0.5" id="pos-version">POS (V - 5.0)</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <div class="flex items-center bg-[#1d1b1b] border border-[#2A2A2A] rounded px-3 py-1 font-mono text-sm" id="clock">
+                00:00:00
+            </div>
+            
+            <div onclick="toggleGst()" class="flex items-center gap-2 bg-[#1d1b1b] border border-[#6b5656] rounded px-3 py-1.5 cursor-pointer hover:border-[#D4A84B] transition-colors">
+                <span class="text-xs font-medium">GST 5%</span>
+                <div id="gst-toggle" class="w-9 h-4.5 rounded-full relative transition-colors bg-[#D4A84B]">
+                    <div id="gst-nob" class="absolute top-0.5 w-3.5 h-3.5 rounded-full bg-[#1C1C1C] transition-all left-[20px]"></div>
+                </div>
+            </div>
+            
+            <div onclick="openAdmin()" class="relative flex items-center gap-2 bg-[#1d1b1b] border border-[#6b5656] rounded px-3 py-1.5 cursor-pointer hover:border-white transition-colors" title="Admin Panel">
+                <i data-lucide="shield" class="w-4 h-4"></i>
+                <span class="text-xs font-medium uppercase min-w-[3rem] text-center hidden md:block">Admin</span>
+                <div id="admin-alert-badge" class="hidden absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse border border-black z-10 shadow-lg">0</div>
+            </div>
+            
+            <div onclick="openSettings()" class="p-1.5 rounded bg-[#1d1b1b] border border-[#6b5656] cursor-pointer hover:border-white" title="Cloud Sync Settings">
+                <i data-lucide="settings" class="w-5 h-5"></i>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-col md:flex-row flex-1 overflow-hidden">
+        
+        <!-- SIDEBAR -->
+        <aside class="w-full md:w-[210px] bg-[#011100] border-b md:border-b-0 md:border-r border-[#6b5656] overflow-y-auto p-2 scrollbar-thin md:h-full h-[25vh] shrink-0" id="sidebar">
+            <div class="text-[10px] font-semibold tracking-widest uppercase text-white/50 px-2 py-1 mb-1">
+                🚗 पार्सल
+            </div>
+            <div id="parcel-container"></div>
+
+            <div class="text-[10px] font-semibold tracking-widest uppercase text-white/50 px-2 py-1 mb-1 flex items-center justify-between mt-4">
+                <span>🪑 Dine In Tables</span>
+                <button onclick="minimizeAll()" class="text-[9px] bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded border border-white/10 text-white/70 hover:text-white transition-colors">Minimize All</button>
+            </div>
+            <div id="tables-container" class="flex flex-col gap-1"></div>
+        </aside>
+
+        <!-- WORKSPACE -->
+        <main class="flex-1 flex flex-col min-w-0 relative">
+            <div id="minimized-chips" class="minimised-strip"></div>
+            
+            <div id="empty-state" class="flex-1 flex flex-col items-center justify-center text-white/20 gap-3">
+                <i data-lucide="utensils" class="w-16 h-16"></i>
+                <p class="text-lg">Select a table to start an order</p>
+            </div>
+
+            <div id="order-window" class="hidden flex-1 flex flex-col overflow-hidden animate-in">
+                <!-- Window Content will be injected here -->
+            </div>
+        </main>
+
+        <!-- RIGHT PANEL (SALES LOG) -->
+        <aside id="log-panel" class="w-full md:w-[340px] bg-[#000000] border-t md:border-t-0 md:border-l border-[#6b5656] flex flex-col transition-all duration-300 md:h-full h-[25vh] shrink-0">
+            <div class="p-4 border-b border-[#6b5656] flex items-center justify-between bg-[#111] cursor-pointer hover:bg-[#1d1b1b] transition-colors" onclick="toggleLog()">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="file-text" class="text-[#D4A84B] w-5 h-5"></i>
+                    <h2 class="font-bold">Recent Billing</h2>
+                </div>
+                <button class="hover:text-[#D4A84B]"><i data-lucide="chevron-down" id="log-toggle-icon" class="w-5 h-5 transition-transform duration-300"></i></button>
+            </div>
+
+            <div id="log-content" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-thin"></div>
+
+            <div class="p-4 bg-[#141414] border-t border-[#6b5656] shrink-0">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-white/40 text-[10px] uppercase tracking-wider">Today's Total</span>
+                    <div class="flex items-center gap-1.5">
+                        <div id="sync-indicator"></div>
+                        <span class="font-mono text-lg font-bold text-[#D4A84B]" id="today-total">₹0.00</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <button onclick="performSync(true)" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold text-xs flex items-center justify-center gap-2">
+                        <i data-lucide="cloud" class="w-4 h-4"></i> SYNC SPREADSHEET
+                    </button>
+                    <button onclick="exportLog()" class="w-full py-2 bg-[#1d1b1b] border border-[#6b5656] hover:border-white text-white rounded font-bold text-xs flex items-center justify-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i> EXPORT CSV
+                    </button>
+                </div>
+                
+                <p class="text-[9px] text-white/30 text-center mt-3 uppercase tracking-tighter">Maa Gayatri POS Systems © 2026</p>
+            </div>
+        </aside>
+    </div>
+
+    <!-- MODALS -->
+    <div id="settings-modal" class="hidden fixed inset-0 z-[100] modal-backdrop flex items-center justify-center p-4">
+        <div class="bg-[#1C1C1C] border border-[#6b5656] rounded-xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div class="p-5 border-b border-[#6b5656] flex items-center justify-between">
+                <h3 class="text-lg font-bold flex items-center gap-2 text-[#D4A84B]"><i data-lucide="settings" class="w-5 h-5"></i> Settings</h3>
+                <button onclick="closeSettings()" class="text-white/40 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <div class="p-6 space-y-6">
+                <div>
+                    <label class="block text-xs font-bold text-[#D4A84B] uppercase mb-2">Google Apps Script URL</label>
+                    <input type="text" id="sync-url-input" class="w-full bg-[#141414] border border-[#6b5656] rounded-lg px-4 py-3 text-sm focus:border-[#D4A84B] outline-none font-mono" placeholder="https://script.google.com/macros/s/...">
+                </div>
+                <div>
+                   <label class="block text-xs font-bold text-[#D4A84B] uppercase mb-2">Sync Frequency</label>
+                   <div class="flex gap-2 p-1 bg-[#141414] border border-[#6b5656] rounded-lg">
+                      <button id="mode-realtime" onclick="setTempMode('realtime')" class="flex-1 py-2 text-xs font-bold rounded-md transition-all">REAL-TIME</button>
+                      <button id="mode-daywise" onclick="setTempMode('daywise')" class="flex-1 py-2 text-xs font-bold rounded-md transition-all">DAY-WISE</button>
+                   </div>
+                   <p id="mode-desc" class="text-[10px] text-white/40 mt-2 leading-relaxed h-8"></p>
+                </div>
+                <div class="bg-[#D4A84B]/5 border border-[#D4A84B]/20 rounded-lg p-4 grid grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-[10px] uppercase text-white/40">Status</div>
+                        <div id="modal-sync-status" class="text-sm font-medium capitalize">-</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase text-white/40">Last Sync</div>
+                        <div id="modal-last-sync" class="text-sm font-medium">Never</div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 bg-black/40 flex gap-3">
+                <button onclick="saveSettings()" class="flex-1 py-3 bg-[#D4A84B] text-black rounded-lg font-bold hover:brightness-110">SAVE CONFIG</button>
+                <button onclick="closeSettings()" class="flex-1 py-3 bg-[#1d1b1b] border border-[#6b5656] text-white rounded-lg font-bold">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN PANEL OVERLAY -->
+    <div id="admin-panel" class="hidden fixed inset-0 z-[2000] bg-black/95 flex flex-col p-6 overflow-hidden">
+        <div class="flex justify-between items-center mb-4 shrink-0">
+            <h2 class="text-2xl font-bold text-[#D4A84B]">Admin Panel</h2>
+            <div class="flex bg-[#1C1C1C] border border-[#6b5656] rounded-lg overflow-hidden">
+                <button id="tab-dashboard" onclick="switchAdminTab('dashboard')" class="px-6 py-2 text-white hover:bg-white/10 font-bold">Dashboard</button>
+                <button id="tab-menu" onclick="switchAdminTab('menu')" class="px-6 py-2 bg-[#D4A84B] text-black font-bold">Menu</button>
+                <button id="tab-inventory" onclick="switchAdminTab('inventory')" class="px-6 py-2 text-white hover:bg-white/10 font-bold">Inventory</button>
+                <button id="tab-recipes" onclick="switchAdminTab('recipes')" class="px-6 py-2 text-white hover:bg-white/10 font-bold">Recipes</button>
+            </div>
+            <button onclick="closeAdmin()" class="p-2 hover:bg-white/10 rounded-full"><i data-lucide="x" class="w-6 h-6"></i></button>
+        </div>
+
+        <div id="admin-view-dashboard" class="hidden flex gap-4 flex-1 overflow-hidden flex-col">
+            <div class="flex gap-4 shrink-0">
+                <div class="flex-1 bg-[#1C1C1C] border border-[#6b5656] rounded-lg p-6">
+                    <h3 class="text-xl font-bold text-[#D4A84B]">Total Stock Value</h3>
+                    <div id="dash-total-value" class="text-3xl font-bold mt-2">₹0</div>
+                </div>
+                <div class="flex-1 bg-[#1C1C1C] border border-red-500/50 rounded-lg p-6 relative overflow-hidden">
+                    <div class="absolute inset-0 bg-red-500/10 pointer-events-none"></div>
+                    <h3 class="text-xl font-bold text-red-500 relative z-10">Critically Low Stock</h3>
+                    <div id="dash-low-stock" class="text-3xl font-bold mt-2 text-red-500 relative z-10">0 Items</div>
+                </div>
+            </div>
+            
+            <div class="flex gap-4 flex-1 overflow-hidden">
+                <div class="flex-1 bg-[#1C1C1C] border border-[#6b5656] rounded-lg flex flex-col p-4">
+                     <h3 class="font-bold text-lg border-b border-white/10 pb-2 mb-2">Recent Transactions</h3>
+                     <div id="dash-tx-log" class="flex-1 overflow-y-auto py-2 scrollbar-thin"></div>
+                </div>
+                <div class="flex-1 bg-[#1C1C1C] border border-red-500/30 rounded-lg flex flex-col p-4">
+                     <h3 class="font-bold text-lg border-b border-red-500/30 pb-2 mb-2 text-red-400">Alerts</h3>
+                     <div id="dash-low-items" class="flex-1 overflow-y-auto py-2 scrollbar-thin"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="admin-view-menu" class="flex gap-4 flex-1 overflow-hidden">
+            <!-- Categories List -->
+            <div class="w-1/4 bg-[#1C1C1C] border border-[#6b5656] rounded-lg overflow-y-auto p-4 flex flex-col gap-2 scrollbar-thin">
+                <h3 class="font-bold text-lg border-b border-white/10 pb-2 mb-2">Categories</h3>
+                <div id="admin-cats" class="flex flex-col gap-2"></div>
+                <button onclick="addAdminCategory()" class="mt-4 bg-[#D4A84B] text-black font-bold py-2 rounded">+ New Category</button>
+            </div>
+            <!-- Items List -->
+            <div class="flex-1 bg-[#1C1C1C] border border-[#6b5656] rounded-lg overflow-y-auto p-4 flex flex-col scrollbar-thin">
+                <div class="flex justify-between border-b border-white/10 pb-2 mb-4 shrink-0">
+                    <h3 class="font-bold text-lg" id="admin-cat-title">Select Category</h3>
+                    <button onclick="addAdminItem()" id="btn-add-item" class="hidden bg-[#D4A84B] text-black font-bold px-4 py-1 rounded">+ New Item</button>
+                </div>
+                <div class="grid grid-cols-[3fr_1.5fr_1.5fr_1fr] gap-4 font-bold text-sm text-white/50 border-b border-white/5 pb-2 px-2 shrink-0 hidden" id="admin-items-header">
+                    <div>Item Name</div>
+                    <div>Price (₹)</div>
+                    <div>Stock</div>
+                    <div>Actions</div>
+                </div>
+                <div id="admin-items" class="flex-1 overflow-y-auto mt-2 flex flex-col gap-2 scrollbar-thin"></div>
+            </div>
+        </div>
+
+        <div id="admin-view-inventory" class="hidden flex gap-4 flex-1 overflow-hidden">
+            <!-- Inventory Categories List -->
+            <div class="w-1/4 bg-[#1C1C1C] border border-[#6b5656] rounded-lg overflow-y-auto p-4 flex flex-col gap-2 scrollbar-thin">
+                <h3 class="font-bold text-lg border-b border-white/10 pb-2 mb-2">Inventory Types</h3>
+                <div id="admin-inv-cats" class="flex flex-col gap-2"></div>
+            </div>
+            <!-- Inventory Items List -->
+            <div class="flex-1 bg-[#1C1C1C] border border-[#6b5656] rounded-lg overflow-y-auto p-4 flex flex-col scrollbar-thin">
+                <div class="flex justify-between border-b border-white/10 pb-2 mb-4 shrink-0">
+                    <h3 class="font-bold text-lg" id="admin-inv-title">Select Type</h3>
+                    <button onclick="addInvItem()" id="btn-add-inv-item" class="hidden bg-[#185e13] text-white font-bold px-4 py-1 rounded">+ Add Stock Item</button>
+                </div>
+                <div class="grid grid-cols-[3fr_1.5fr_1.5fr_3fr_1fr] gap-4 font-bold text-sm text-white/50 border-b border-white/5 pb-2 px-2 shrink-0 hidden" id="admin-inv-items-header">
+                    <div>Item (Unit)</div>
+                    <div>Stock</div>
+                    <div>Min. Alert</div>
+                    <div>Modify Stock</div>
+                    <div>Actions</div>
+                </div>
+                <div id="admin-inv-items" class="flex-1 overflow-y-auto mt-2 flex flex-col gap-2 scrollbar-thin"></div>
+            </div>
+        </div>
+        
+        <div id="admin-view-recipes" class="hidden flex gap-4 flex-1 overflow-hidden">
+            <!-- Items List -->
+            <div class="w-1/3 bg-[#1C1C1C] border border-[#6b5656] rounded-lg overflow-y-auto p-4 flex flex-col gap-4 scrollbar-thin">
+                <h3 class="font-bold text-lg border-b border-white/10 pb-2 shrink-0">Menu Items</h3>
+                <input type="text" id="recipe-search" placeholder="Search menu..." oninput="renderRecipeMenu()" class="w-full bg-[#141414] border border-[#6b5656] rounded px-3 py-2 text-sm focus:border-[#D4A84B] outline-none shrink-0">
+                <div id="admin-recipe-menu-list" class="flex flex-col gap-2 flex-1 overflow-y-auto scrollbar-thin"></div>
+            </div>
+            <!-- Recipe Editor -->
+            <div class="flex-1 bg-[#1C1C1C] border border-[#6b5656] rounded-lg overflow-y-auto p-4 flex flex-col scrollbar-thin relative">
+                <div id="recipe-editor-placeholder" class="absolute inset-0 flex items-center justify-center text-white/50">
+                    Select a menu item from the left to edit its recipe.
+                </div>
+                <div id="recipe-editor-content" class="hidden flex-col h-full w-full">
+                    <div class="flex justify-between items-center border-b border-white/10 pb-4 mb-4 shrink-0">
+                        <div>
+                            <h3 class="font-bold text-xl text-[#D4A84B]" id="recipe-item-name">Item Name</h3>
+                            <div class="text-sm text-white/50" id="recipe-item-id">item_id</div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                             <label class="text-sm font-bold flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" id="recipe-auto-deduct" onchange="toggleRecipeAutoDeduct()" class="w-4 h-4 accent-[#D4A84B]">
+                                 Auto-Deduct Stock
+                             </label>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mb-4 shrink-0">
+                        <h4 class="font-bold">Ingredients</h4>
+                        <div class="flex gap-2">
+                            <select id="recipe-add-ing-select" class="bg-[#141414] border border-[#6b5656] rounded px-2 py-1 text-sm outline-none focus:border-[#D4A84B] max-w-[200px]">
+                                <option value="">-- Select Inventory Item --</option>
+                            </select>
+                            <button onclick="addRecipeIngredient()" class="bg-[#185e13] text-white px-3 py-1 rounded text-sm font-bold">+ Add</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-[3fr_2fr_1fr] gap-4 font-bold text-sm text-white/50 border-b border-white/5 pb-2 px-2 shrink-0">
+                        <div>Inventory Item</div>
+                        <div>Quantity Needed</div>
+                        <div>Actions</div>
+                    </div>
+                    <div id="admin-recipe-ingredients" class="flex-1 overflow-y-auto mt-2 flex flex-col gap-2 scrollbar-thin"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRINT OVERLAY -->
+    <div id="print-overlay" class="hidden fixed inset-0 z-[1000] bg-black/90 flex flex-col items-center justify-center">
+        <div class="bg-white text-black p-8 w-[320px] shadow-2xl relative">
+            <div id="print-preview-content" class="receipt-font"></div>
+        </div>
+        <div class="mt-8 flex gap-4">
+            <button onclick="doPrint()" class="px-8 py-3 bg-green-600 text-white rounded-lg font-bold flex items-center gap-2">
+                <i data-lucide="printer" class="w-5 h-5"></i> PRINT BILL (Enter)
+            </button>
+            <button onclick="closePrint()" class="px-8 py-3 bg-white/10 text-white rounded-lg font-bold">CANCEL (Esc)</button>
+        </div>
+    </div>
+
+    <!-- WAITER ORDERS OVERLAY -->
+    <div id="waiter-orders" class="fixed bottom-6 right-6 flex flex-col gap-3 z-[90] max-w-sm"></div>
+
+    <iframe id="printFrame" class="hidden"></iframe>
+    <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 bg-[#D4A84B] text-black px-4 py-2 rounded-full font-bold text-xs z-[200] opacity-0 pointer-events-none transition-all duration-300"></div>
+
+    </div> <!-- END APP WRAPPER -->
+
+    <script src="inventory-data.js"></script>
+    <script src="pos-logic.js"></script>
+    <script src="automation.js"></script>
+</body>
+</html>

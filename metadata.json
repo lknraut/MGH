@@ -1,0 +1,6 @@
+{
+  "name": "MGHR POS Sync",
+  "description": "Automated POS system with hourly Google Spreadsheet sync and sales reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
