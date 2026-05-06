@@ -1196,7 +1196,7 @@ function renderOrderWindow() {
 
     const order = orders[activeTableId];
     const subtotal = calcSubtotal(order);
-    const total = subtotal + (gstEnabled ? subtotal * 0.05 : 0) - order.discount;
+    const total = subtotal + (gstEnabled ? subtotal * 0.05 : 0) - (order.discount || 0);
 
     const isEdit = activeTableId.startsWith('edit_');
     const tableLabel = isEdit ? `✏️ Editing ${orders[activeTableId]._originalBillNo}` : TABLE_LABELS[activeTableId];
@@ -1506,7 +1506,7 @@ function printBillActive() {
     if(!o || !o.items.length) return;
     const subtotal = calcSubtotal(o);
     const gstAmt = gstEnabled ? Math.round(subtotal * 0.05) : 0;
-    const total = subtotal + gstAmt - o.discount;
+    const total = subtotal + gstAmt - (o.discount || 0);
 
     const isEdit = activeTableId.startsWith('edit_');
     const now = new Date();
