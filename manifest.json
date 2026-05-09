@@ -1,0 +1,25 @@
+{
+  "name": "Maa Gayatri Hotel & Restaurant POS",
+  "short_name": "MGHR POS",
+  "description": "Point of Sale system for Maa Gayatri Hotel and Restaurant",
+  "start_url": "/mghr/",
+  "scope": "/mghr/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#141414",
+  "theme_color": "#D4A84B",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
