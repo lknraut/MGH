@@ -1,8 +1,8 @@
-const CACHE_NAME = 'mghr-pos-v1';
+const CACHE_NAME = 'mghr-pos-v5';
 const ASSETS = [
-  '/mghr/',
-  '/mghr/index.html',
-  '/mghr/manifest.json'
+  '/MGH/',
+  '/MGH/index.html',
+  '/MGH/manifest.json'
 ];
 
 // Install — cache all assets
