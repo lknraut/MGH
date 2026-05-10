@@ -1639,14 +1639,23 @@ function doPrint() {
         billCounter++;
         orders[activeTableId].items = []; // Clear items after printing
         
+        // --- Publish to Sales Viewer ---
+        if (window.salesMqttClient) {
+            const payload = {
+                billNo: pendingBill.billNo,
+                total: pendingBill.total,
+                label: pendingBill.label || activeTableId,
+                timestamp: Date.now()
+            };
+            // QoS 1 guarantees delivery to broker, broker queues for offline connected-clients
+            window.salesMqttClient.publish('mghr/sales/v1', JSON.stringify(payload), { qos: 1 });
+        }
+
         save();
         renderSidebar();
         renderLog();
         closePrint();
         renderOrderWindow();
-
-        // Trigger MQTT Sync
-        if (typeof publishPendingSales === 'function') publishPendingSales();
     }
     
     showToast('Printed Successfully');
@@ -1838,48 +1847,18 @@ function setupMQTT() {
     salesClient.on('connect', () => {
         console.log('Connected to Sales HiveMQ Broker');
         salesClient.subscribe('mghr/sales/ack', { qos: 1 });
-        // Try publishing pending immediately on connect
-        setTimeout(publishPendingSales, 2000);
     });
 
     salesClient.on('message', (topic, message) => {
         if (topic === 'mghr/sales/ack') {
             try {
                 const ack = JSON.parse(message.toString());
-                const sale = salesLog.find(s => s.billNo === ack.billNo);
-                if (sale) {
-                    sale.mqReported = true;
-                    save();
-                    console.log('Sale confirmed by viewer:', ack.billNo);
-                }
+                console.log('Sale received by viewer:', ack.billNo);
             } catch(e){}
         }
     });
 
     window.salesMqttClient = salesClient;
-    
-    // Retry every 30 seconds for any missed sales
-    setInterval(publishPendingSales, 30000);
-}
-
-function publishPendingSales() {
-    if (!window.salesMqttClient || !window.salesMqttClient.connected) return;
-
-    // Find sales in last 24 hours that aren't reported yet
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-    
-    const pending = salesLog.filter(s => !s.mqReported && (now - (s.timestamp || now) < oneDay));
-    
-    pending.forEach(s => {
-        const payload = {
-            billNo: s.billNo,
-            total: s.total,
-            label: s.label || 'POS',
-            timestamp: s.timestamp || Date.now()
-        };
-        window.salesMqttClient.publish('mghr/sales/v1', JSON.stringify(payload), { qos: 1 });
-    });
 }
 function renderWaiterOrders() {
     const container = document.getElementById('waiter-orders');
