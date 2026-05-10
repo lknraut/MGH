@@ -969,25 +969,6 @@ function save() {
 }
 
 function cleanupAndSyncCheck() {
-    const now = Date.now();
-    const cleanupLimit = 15 * 60 * 1000;
-    
-    let changed = false;
-    // Clear items synced more than 15 mins ago
-    const newLog = salesLog.filter(e => {
-        if (e.synced && e.syncTimestamp && (now - e.syncTimestamp > cleanupLimit)) {
-            changed = true;
-            return false;
-        }
-        return true;
-    });
-
-    if (changed) {
-        salesLog = newLog;
-        save();
-        renderLog();
-    }
-
     // If daywise mode, check for yesterday's bills
     if (syncMode === 'daywise') {
         const todayStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -1623,6 +1604,18 @@ function doPrint() {
         const editId = activeTableId;
         orders[editId].items = [];
         delete orders[editId];
+        
+        save();
+        renderSidebar();
+        renderLog();
+        closePrint();
+        
+        const realKeys = Object.keys(orders).filter(k => !k.startsWith('edit_'));
+        if (realKeys.length === 0) {
+            openOrder(null);
+        } else {
+            openOrder(realKeys[realKeys.length - 1]);
+        }
     } else {
         // Deduct inventory
         if (pendingBill.snapshot) {
@@ -1644,20 +1637,16 @@ function doPrint() {
 
         salesLog.push(pendingBill);
         billCounter++;
-        orders[activeTableId].items = [];
+        orders[activeTableId].items = []; // Clear items after printing
+        
+        save();
+        renderSidebar();
+        renderLog();
+        closePrint();
+        renderOrderWindow();
     }
-    save();
-    renderSidebar();
-    renderLog();
-    closePrint();
     
-    const realKeys = Object.keys(orders).filter(k => !k.startsWith('edit_'));
-    if (realKeys.length === 0) {
-        openOrder(null);
-    } else {
-        openOrder(realKeys[realKeys.length - 1]);
-    }
-    showToast('Settled Successfully');
+    showToast('Printed Successfully');
     performSync();
 }
 
