@@ -118,7 +118,7 @@ const DEFAULT_MENU_CATEGORIES = [
     icon: '🍚',
     items: [
       { id: 'plain_rice', name: 'प्लेन राईस', price: 80 },
-      { id: 'half_plain_rice', name: 'हाफ प्लेन राईस', price: 40 },
+      { id: 'half_plain_rice', name: 'हाफ प्लेन राईस', price: 40 },        
       { id: 'jira_rice', name: 'जिरा राईस', price: 90 },
       { id: 'half_jeera_rice', name: 'हाफ जिरा राईस', price: 50 },
       { id: 'steam_rice', name: 'स्टीम राईस', price: 100 },
