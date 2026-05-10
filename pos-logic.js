@@ -1639,6 +1639,18 @@ function doPrint() {
         billCounter++;
         orders[activeTableId].items = []; // Clear items after printing
         
+        // --- Publish to Sales Viewer ---
+        if (window.salesMqttClient) {
+            const payload = {
+                billNo: pendingBill.billNo,
+                total: pendingBill.total,
+                label: pendingBill.label || activeTableId,
+                timestamp: Date.now()
+            };
+            // QoS 1 guarantees delivery to broker, broker queues for offline connected-clients
+            window.salesMqttClient.publish('mghr/sales/v1', JSON.stringify(payload), { qos: 1 });
+        }
+
         save();
         renderSidebar();
         renderLog();
@@ -1825,6 +1837,28 @@ function setupMQTT() {
             showToast('New Waiter Order!');
         }
     });
+
+    // --- SALES MQTT (HiveMQ) ---
+    const salesClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+        clientId: 'mgpos_main_publisher_' + Math.random().toString(16).substr(2, 8),
+        clean: true 
+    });
+    
+    salesClient.on('connect', () => {
+        console.log('Connected to Sales HiveMQ Broker');
+        salesClient.subscribe('mghr/sales/ack', { qos: 1 });
+    });
+
+    salesClient.on('message', (topic, message) => {
+        if (topic === 'mghr/sales/ack') {
+            try {
+                const ack = JSON.parse(message.toString());
+                console.log('Sale received by viewer:', ack.billNo);
+            } catch(e){}
+        }
+    });
+
+    window.salesMqttClient = salesClient;
 }
 function renderWaiterOrders() {
     const container = document.getElementById('waiter-orders');
